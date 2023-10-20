@@ -234,7 +234,7 @@ model.to(device)
 
 params = [p for p in model.parameters() if p.requires_grad]
 optimizer = torch.optim.SGD(params, lr=0.01, momentum=0.9, weight_decay=0.0005)
-lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.3)
+lr_scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=1, gamma=0.5)
 num_epochs = 10
 
 for epoch in range(num_epochs):
@@ -330,7 +330,7 @@ def bezier_curve(point1, point2, control):
     return curve[:, 0], curve[:, 1]
 #상악의 경우 - 하악의 경우 +
 def plot_curve_between_points(point1, point2):
-    control_point = [(point1[0] + point2[0]) / 2, point1[1] - 5 * abs(point2[1] - point1[1])]
+    control_point = [(point1[0] + point2[0]) / 2, point1[1] - 2 * abs(point2[1] - point1[1])]
 
     xs, ys = bezier_curve(point1, point2, control_point)
 
