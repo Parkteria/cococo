@@ -201,7 +201,7 @@ class COCOeval:
         if len(gts) == 0 or len(dts) == 0:
             return []
         ious = np.zeros((len(dts), len(gts)))
-        sigmas = np.array([.5, .5, .5, .5, .5, .5, .5])/10.0
+        sigmas = np.array([.5, .5, .5, .5, .5, .5, .5, .5])/10.0
         vars = (sigmas * 2)**2
         k = len(sigmas)
         # compute oks between each detection and ground truth object
