@@ -75,7 +75,6 @@ def _get_iou_types(model):
 @torch.inference_mode()
 def evaluate(model, data_loader, device):
     n_threads = torch.get_num_threads()
-    # FIXME remove this and make paste_masks_in_image run on the GPU
     torch.set_num_threads(1)
     cpu_device = torch.device("cpu")
     model.eval()
@@ -87,35 +86,36 @@ def evaluate(model, data_loader, device):
     coco_evaluator = CocoEvaluator(coco, iou_types)
 
     for images, targets in metric_logger.log_every(data_loader, 100, header):
-        images = list(img.to(device) for img in images)
+        images = [img.to(device) for img in images]
 
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
-    model_time = time.time()
-    outputs = model(images)
-    outputs = [{k: v.to(cpu_device) for k, v in t.items()} for t in outputs]
-    model_time = time.time() - model_time
+        if torch.cuda.is_available():
+            torch.cuda.synchronize()
+        start = time.time()
 
-    # ✅ 여기에서 id 부여
-    for i, output in enumerate(outputs):
-        num_instances = output["scores"].shape[0]
-        output["ids"] = torch.arange(num_instances)  # tensor([0, 1, 2, ...])
+        outputs = model(images)
+        outputs = [{k: v.to(cpu_device) for k, v in t.items()} for t in outputs]
 
-    # 이 부분은 수정 없이 둠
-    res = {target["image_id"]: output for target, output in zip(targets, outputs)}
+        # (선택) ids가 필요 없다면 생략 가능
+        for out in outputs:
+            num_instances = out["scores"].shape[0]
+            out["ids"] = torch.arange(num_instances, device=cpu_device)
 
-    evaluator_time = time.time()
-    coco_evaluator.update(res)
-    evaluator_time = time.time() - evaluator_time
-    metric_logger.update(model_time=model_time, evaluator_time=evaluator_time)
+        res = {t["image_id"].item() if hasattr(t["image_id"], "item") else t["image_id"]: o
+               for t, o in zip(targets, outputs)}
 
-    # gather the stats from all processes
+        eval_start = time.time()
+        coco_evaluator.update(res)
+
+        model_time = time.time() - start
+        evaluator_time = time.time() - eval_start
+        metric_logger.update(model_time=model_time, evaluator_time=evaluator_time)
+
+    # 루프 끝난 뒤에만 집계/요약
     metric_logger.synchronize_between_processes()
     print("Averaged stats:", metric_logger)
     coco_evaluator.synchronize_between_processes()
-
-    # accumulate predictions from all images
     coco_evaluator.accumulate()
     coco_evaluator.summarize()
+
     torch.set_num_threads(n_threads)
     return coco_evaluator
